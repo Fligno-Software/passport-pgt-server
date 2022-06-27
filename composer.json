@@ -40,6 +40,10 @@
             "aliases": {
                 "PassportPgtServer": "Fld3\\PassportPgtServer\\Facades\\PassportPgtServer"
             }
+        },
+        "branch-alias": {
+            "dev-master": "1.0.x-dev",
+            "dev-develop": "1.0.x-dev"
         }
     }
 }

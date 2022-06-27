@@ -2,9 +2,15 @@
 
 namespace Fld3\PassportPgtServer;
 
-use Illuminate\Support\ServiceProvider;
+use Fligno\StarterKit\Providers\BaseStarterKitServiceProvider;
+use Laravel\Passport\Passport;
 
-class PassportPgtServerServiceProvider extends ServiceProvider
+/**
+ * Class PassportPgtServerServiceProvider
+ *
+ * @author James Carlo Luchavez <jamescarlo.luchavez@fligno.com>
+ */
+class PassportPgtServerServiceProvider extends BaseStarterKitServiceProvider
 {
     /**
      * Perform post-registration booting of services.
@@ -13,15 +19,25 @@ class PassportPgtServerServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // $this->loadTranslationsFrom(__DIR__.'/../resources/lang', 'fld3');
-        // $this->loadViewsFrom(__DIR__.'/../resources/views', 'fld3');
-        // $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
-        // $this->loadRoutesFrom(__DIR__.'/routes.php');
+        parent::boot();
 
-        // Publishing is only necessary when using the CLI.
-        if ($this->app->runningInConsole()) {
-            $this->bootForConsole();
+        // Override Auth Config
+        passportPgtServer()->setPassportAsApiDriver();
+
+        // Add Passport Routes
+        if (! $this->app->routesAreCached()) {
+            Passport::routes();
         }
+
+        // Hash Client Secrets
+        if (passportPgtServer()->hashClientSecrets()) {
+            Passport::hashClientSecrets();
+        }
+
+        // Set Expirations
+        Passport::tokensExpireIn(passportPgtServer()->getTokensExpiresIn());
+        Passport::refreshTokensExpireIn(passportPgtServer()->getRefreshTokensExpiresIn());
+        Passport::personalAccessTokensExpireIn(passportPgtServer()->getPersonalAccessTokensExpiresIn());
     }
 
     /**
@@ -34,8 +50,8 @@ class PassportPgtServerServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(__DIR__.'/../config/passport-pgt-server.php', 'passport-pgt-server');
 
         // Register the service the package provides.
-        $this->app->singleton('passport-pgt-server', function ($app) {
-            return new PassportPgtServer;
+        $this->app->singleton('passport-pgt-server', function ($app, $params) {
+            return new PassportPgtServer(collect($params)->get('auth_server_controller'));
         });
     }
 
@@ -44,7 +60,7 @@ class PassportPgtServerServiceProvider extends ServiceProvider
      *
      * @return array
      */
-    public function provides()
+    public function provides(): array
     {
         return ['passport-pgt-server'];
     }
