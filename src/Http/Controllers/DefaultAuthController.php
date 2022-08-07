@@ -2,25 +2,61 @@
 
 namespace Fld3\PassportPgtServer\Http\Controllers;
 
-use Fld3\PassportPgtServer\Abstracts\BaseAuthServerController;
+use App\Http\Controllers\Controller;
+use Fld3\PassportPgtServer\DataFactories\UserDataFactory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Laravel\Passport\RefreshTokenRepository;
 use Laravel\Passport\TokenRepository;
 
 /**
- * Class AuthServerController
+ * Class DefaultAuthController
  *
  * @author James Carlo Luchavez <jamescarlo.luchavez@fligno.com>
  */
-class AuthServerController extends BaseAuthServerController
+class DefaultAuthController extends Controller
 {
+    /**
+     * Register
+     *
+     * Register a new user.
+     *
+     * @group Authentication
+     *
+     * @param  Request  $request
+     * @return JsonResponse
+     */
+    public function register(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'email' => 'email:rfc,dns|unique:users',
+            'name' => 'required',
+            'password' => 'required',
+        ]);
+
+        $user = UserDataFactory::from($validated)->create();
+
+        $data['user'] = $user;
+
+        $log = passportPgtClient()->login($user->email, $validated['password']);
+
+        if ($log->isSuccessful()) {
+            $data['tokens'] = $log->data;
+        }
+
+        return customResponse()
+            ->success()
+            ->message('Successfully registered user.')
+            ->data($data)
+            ->generate();
+    }
+
     /**
      * Logout
      *
      * @group Authentication
      *
-     * @param Request $request
+     * @param  Request  $request
      * @return JsonResponse
      */
     public function logout(Request $request): JsonResponse
@@ -47,7 +83,7 @@ class AuthServerController extends BaseAuthServerController
      *
      * @group Authentication
      *
-     * @param Request $request
+     * @param  Request  $request
      * @return JsonResponse
      */
     public function me(Request $request): JsonResponse
