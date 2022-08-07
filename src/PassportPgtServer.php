@@ -2,16 +2,15 @@
 
 namespace Fld3\PassportPgtServer;
 
-use Fld3\PassportPgtServer\Abstracts\BaseAuthServerController;
-use Fld3\PassportPgtServer\Http\Controllers\AuthServerController;
-use Fld3\PassportPgtServer\Traits\HasAuthServerGetSelfTrait;
-use Fld3\PassportPgtServer\Traits\HasAuthServerLogoutTrait;
+use Fld3\PassportPgtClient\Traits\HasAuthMethodsTrait;
+use Fld3\PassportPgtServer\Http\Controllers\DefaultAuthController;
+use Fligno\StarterKit\Traits\HasTaggableCacheTrait;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Laravel\Passport\Passport;
 use RuntimeException;
-use Throwable;
 
 /**
  * Class PassportPgtServer
@@ -20,37 +19,33 @@ use Throwable;
  */
 class PassportPgtServer
 {
-    /**
-     * @var string
-     */
-    protected string $authServerController;
+    use HasAuthMethodsTrait, HasTaggableCacheTrait;
 
     /**
      * @var array
      */
-    protected array $logoutAuthController = [];
+    protected array $controllers = [];
 
     /**
-     * @var array
+     * @param  string|null  $authController
      */
-    protected array $meAuthController = [];
-
-    /**
-     * @param string|null $authServerControllerClass
-     */
-    public function __construct(string $authServerControllerClass = null)
+    public function __construct(string $authController = null)
     {
-        if ($authServerControllerClass) {
-            try {
-                $this->setAuthServerController($authServerControllerClass);
-            } catch (Throwable) {
-            }
-        }
+        // Rehydrate first
+        $this->controllers = $this->getControllers()->toArray();
 
-        if (! isset($this->authServerController)) {
-            $this->authServerController = AuthServerController::class;
-        }
+        $this->setAuthController($authController ?? DefaultAuthController::class, false, false);
     }
+
+    /**
+     * @return string
+     */
+    public function getMainTag(): string
+    {
+        return 'passport-pgt-server';
+    }
+
+    /***** CONFIG-RELATED *****/
 
     /**
      * @link https://laravel.com/docs/8.x/passport#installation
@@ -77,78 +72,119 @@ class PassportPgtServer
         }
     }
 
+    /***** CONTROLLER-RELATED *****/
+
     /**
-     * @param string $authServerControllerClass
+     * @param  string|null  $method
+     * @param  bool  $rehydrate
+     * @return Collection|array|string|null
      */
-    public function setAuthServerController(string $authServerControllerClass): void
+    public function getControllers(string $method = null, bool $rehydrate = false): Collection|array|string|null
     {
-        if (is_subclass_of($authServerControllerClass, BaseAuthServerController::class)) {
-            $this->authServerController = $authServerControllerClass;
-        } else {
-            throw new RuntimeException('Controller class does not extend BaseAuthServerController class.');
+        $tags = $this->getTags();
+        $key = 'controllers';
+
+        $result = $this->getCache($tags, $key, fn () => collect($this->controllers), $rehydrate);
+
+        if ($method) {
+            return $result->get($method);
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param  string  $controller
+     * @param  bool  $override
+     * @param  bool  $throw_error
+     */
+    public function setAuthController(string $controller, bool $override = false, bool $throw_error = true): void
+    {
+        if (is_subclass_of($controller, Controller::class)) {
+            $this->setRegisterController($controller, $override, $throw_error);
+            $this->setLogoutController($controller, $override, $throw_error);
+            $this->setMeController($controller, $override, $throw_error);
         }
     }
 
     /**
-     * @return string|BaseAuthServerController
+     * @param  string  $method
+     * @param  string  $controller
+     * @param  bool  $override
+     * @param  bool  $throw_error
+     * @return bool
      */
-    public function getAuthServerController(): string|BaseAuthServerController
+    protected function setController(string $method, string $controller, bool $override = false, bool $throw_error = true): bool
     {
-        return $this->authServerController;
-    }
+        if ($this->mustBeController($controller)) {
+            $controllers = $this->getControllers();
+            if ($controllers->has($method) && ! $override) {
+                if ($throw_error) {
+                    throw new RuntimeException('Controller for '.$method.' is already set.');
+                }
 
-    /**
-     * @param string $logoutAuthControllerClass
-     * @return void
-     */
-    public function setLogoutAuthController(string $logoutAuthControllerClass): void
-    {
-        if (is_subclass_of($logoutAuthControllerClass, Controller::class)) {
-            if (class_uses_trait($logoutAuthControllerClass, HasAuthServerLogoutTrait::class)) {
-                $this->logoutAuthController = [$logoutAuthControllerClass, 'logout'];
-            } else {
-                $this->logoutAuthController = [$logoutAuthControllerClass];
+                return false;
             }
-        }
-    }
 
-    /**
-     * @return array
-     */
-    public function getLogoutAuthController(): array
-    {
-        if (count($this->logoutAuthController)) {
-            return $this->logoutAuthController;
-        }
+            // Proceed with setting
 
-        return [$this->authServerController, 'logout'];
-    }
+            $value = null;
 
-    /**
-     * @param array $meAuthController
-     * @return void
-     */
-    public function setMeAuthController(array $meAuthController): void
-    {
-        if (is_subclass_of($meAuthController, Controller::class)) {
-            if (class_uses_trait($meAuthController, HasAuthServerGetSelfTrait::class)) {
-                $this->meAuthController = [$meAuthController, 'me'];
-            } else {
-                $this->meAuthController = [$meAuthController];
+            if ($this->isInvokable($controller)) {
+                $value = $controller;
+            } elseif ($this->mustHaveMethod($method, $controller)) {
+                $value = [$controller, $method];
             }
+
+            if ($value) {
+                $controllers->put($method, $value);
+                $this->controllers = $controllers->toArray();
+                $this->getControllers(rehydrate: true);
+
+                return true;
+            }
+
+            if ($throw_error) {
+                throw new RuntimeException($controller.' must either be invokable or has '.$method.' method.');
+            }
+
+            return false;
         }
+
+        return false;
     }
 
     /**
-     * @return array
+     * @param  string  $registerController
+     * @param  bool  $override
+     * @param  bool  $throw_error
+     * @return bool
      */
-    public function getMeAuthController(): array
+    public function setRegisterController(string $registerController, bool $override = false, bool $throw_error = true): bool
     {
-        if (count($this->meAuthController)) {
-            return $this->meAuthController;
-        }
+        return $this->setController('register', $registerController, $override, $throw_error);
+    }
 
-        return [$this->authServerController, 'me'];
+    /**
+     * @param  string  $logoutControllerClass
+     * @param  bool  $override
+     * @param  bool  $throw_error
+     * @return bool
+     */
+    public function setLogoutController(string $logoutControllerClass, bool $override = false, bool $throw_error = true): bool
+    {
+        return $this->setController('logout', $logoutControllerClass, $override, $throw_error);
+    }
+
+    /**
+     * @param  string  $meController
+     * @param  bool  $override
+     * @param  bool  $throw_error
+     * @return bool
+     */
+    public function setMeController(string $meController, bool $override = false, bool $throw_error = true): bool
+    {
+        return $this->setController('me', $meController, $override, $throw_error);
     }
 
     /***** TOKEN EXPIRATIONS *****/
@@ -182,7 +218,7 @@ class PassportPgtServer
      */
     public function getTokensExpiresIn(): Carbon
     {
-        return now()->add($this->getTokensExpiresInValue() . ' ' . $this->getTokensExpiresInUnit());
+        return now()->add($this->getTokensExpiresInValue().' '.$this->getTokensExpiresInUnit());
     }
 
     /**
@@ -206,7 +242,7 @@ class PassportPgtServer
      */
     public function getRefreshTokensExpiresIn(): Carbon
     {
-        return now()->add($this->getRefreshTokensExpiresInValue() . ' ' . $this->getRefreshTokensExpiresInUnit());
+        return now()->add($this->getRefreshTokensExpiresInValue().' '.$this->getRefreshTokensExpiresInUnit());
     }
 
     /**
@@ -230,7 +266,7 @@ class PassportPgtServer
      */
     public function getPersonalAccessTokensExpiresIn(): Carbon
     {
-        return now()->add($this->getPersonalAccessTokensExpiresInValue() . ' ' . $this->getPersonalAccessTokensExpiresInUnit());
+        return now()->add($this->getPersonalAccessTokensExpiresInValue().' '.$this->getPersonalAccessTokensExpiresInUnit());
     }
 
     /***** MODELS & BUILDERS *****/
