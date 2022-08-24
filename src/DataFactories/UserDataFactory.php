@@ -38,4 +38,14 @@ class UserDataFactory extends BaseDataFactory
     {
         return starterKit()->getUserQueryBuilder();
     }
+
+    /**
+     * @return string[]
+     */
+    public function getUniqueKeys(): array
+    {
+        return [
+            'email'
+        ];
+    }
 }
