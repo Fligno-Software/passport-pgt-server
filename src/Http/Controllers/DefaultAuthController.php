@@ -21,7 +21,7 @@ class DefaultAuthController extends Controller
      *
      * Register a new user.
      *
-     * @group Authentication
+     * @group Authentication (Server)
      *
      * @param  Request  $request
      * @return JsonResponse
@@ -54,7 +54,8 @@ class DefaultAuthController extends Controller
     /**
      * Logout
      *
-     * @group Authentication
+     * @group Authentication (Server)
+     * @authenticated
      *
      * @param  Request  $request
      * @return JsonResponse
@@ -79,9 +80,10 @@ class DefaultAuthController extends Controller
     }
 
     /**
-     * Refresh Token
+     * Get Self
      *
-     * @group Authentication
+     * @group Authentication (Server)
+     * @authenticated
      *
      * @param  Request  $request
      * @return JsonResponse
