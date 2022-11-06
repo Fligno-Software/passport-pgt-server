@@ -40,7 +40,7 @@ $ composer require fld3/passport-pgt-server
 
 ### Passport PGT Server
 
-The package provides a service called [**PassportPgtServer**](src/PassportPgtServer.php) which you can use by calling its [helper functions](helpers/passport-pgt-server-helper.php):
+The package provides a service called [**PassportPgtServer**](src/Services/PassportPgtServer.php) which you can use by calling its [helper functions](helpers/passport-pgt-server-helper.php):
 1. `passportPgtServer()`
 2. `passport_pgt_server()`
 

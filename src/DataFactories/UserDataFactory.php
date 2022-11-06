@@ -45,7 +45,7 @@ class UserDataFactory extends BaseDataFactory
     public function getUniqueKeys(): array
     {
         return [
-            'email'
+            'email',
         ];
     }
 }

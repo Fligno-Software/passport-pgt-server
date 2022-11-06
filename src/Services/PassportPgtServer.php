@@ -1,14 +1,12 @@
 <?php
 
-namespace Fld3\PassportPgtServer;
+namespace Fld3\PassportPgtServer\Services;
 
 use Fld3\PassportPgtClient\Traits\HasAuthMethodsTrait;
 use Fld3\PassportPgtServer\Http\Controllers\DefaultAuthController;
-use Fligno\StarterKit\Traits\HasTaggableCacheTrait;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Collection;
 use Laravel\Passport\Passport;
 use RuntimeException;
 
@@ -19,7 +17,7 @@ use RuntimeException;
  */
 class PassportPgtServer
 {
-    use HasAuthMethodsTrait, HasTaggableCacheTrait;
+    use HasAuthMethodsTrait;
 
     /**
      * @var array
@@ -75,25 +73,6 @@ class PassportPgtServer
     /***** CONTROLLER-RELATED *****/
 
     /**
-     * @param  string|null  $method
-     * @param  bool  $rehydrate
-     * @return Collection|array|string|null
-     */
-    public function getControllers(string $method = null, bool $rehydrate = false): Collection|array|string|null
-    {
-        $tags = $this->getTags();
-        $key = 'controllers';
-
-        $result = $this->getCache($tags, $key, fn () => collect($this->controllers), $rehydrate);
-
-        if ($method) {
-            return $result->get($method);
-        }
-
-        return $result;
-    }
-
-    /**
      * @param  string  $controller
      * @param  bool  $override
      * @param  bool  $throw_error
@@ -105,86 +84,6 @@ class PassportPgtServer
             $this->setLogoutController($controller, $override, $throw_error);
             $this->setMeController($controller, $override, $throw_error);
         }
-    }
-
-    /**
-     * @param  string  $method
-     * @param  string  $controller
-     * @param  bool  $override
-     * @param  bool  $throw_error
-     * @return bool
-     */
-    protected function setController(string $method, string $controller, bool $override = false, bool $throw_error = true): bool
-    {
-        if ($this->mustBeController($controller)) {
-            $controllers = $this->getControllers();
-            if ($controllers->has($method) && ! $override) {
-                if ($throw_error) {
-                    throw new RuntimeException('Controller for '.$method.' is already set.');
-                }
-
-                return false;
-            }
-
-            // Proceed with setting
-
-            $value = null;
-
-            if ($this->isInvokable($controller)) {
-                $value = $controller;
-            } elseif ($this->mustHaveMethod($method, $controller)) {
-                $value = [$controller, $method];
-            }
-
-            if ($value) {
-                $controllers->put($method, $value);
-                $this->controllers = $controllers->toArray();
-                $this->getControllers(rehydrate: true);
-
-                return true;
-            }
-
-            if ($throw_error) {
-                throw new RuntimeException($controller.' must either be invokable or has '.$method.' method.');
-            }
-
-            return false;
-        }
-
-        return false;
-    }
-
-    /**
-     * @param  string  $registerController
-     * @param  bool  $override
-     * @param  bool  $throw_error
-     * @return bool
-     */
-    public function setRegisterController(string $registerController, bool $override = false, bool $throw_error = true): bool
-    {
-        return $this->setController('register', $registerController, $override, $throw_error);
-    }
-
-    /**
-     * @param  string  $logoutControllerClass
-     * @param  bool  $override
-     * @param  bool  $throw_error
-     * @return bool
-     */
-    public function setLogoutController(string $logoutControllerClass, bool $override = false, bool $throw_error = true): bool
-    {
-        return $this->setController('logout', $logoutControllerClass, $override, $throw_error);
-    }
-
-    /**
-     * @param  string  $meController
-     * @param  bool  $override
-     * @param  bool  $throw_error
-     * @return bool
-     */
-    public function setMeController(string $meController, bool $override = false, bool $throw_error = true): bool
-    {
-        return $this->setController('me', $meController, $override, $throw_error);
     }
 
     /***** TOKEN EXPIRATIONS *****/
