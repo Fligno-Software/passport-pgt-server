@@ -1,8 +1,9 @@
 <?php
 
-namespace Fld3\PassportPgtServer;
+namespace Fld3\PassportPgtServer\Providers;
 
-use Fligno\StarterKit\Providers\BaseStarterKitServiceProvider;
+use Fld3\PassportPgtServer\Services\PassportPgtServer;
+use Fligno\StarterKit\Abstracts\BaseStarterKitServiceProvider;
 use Laravel\Passport\Passport;
 
 /**
@@ -13,6 +14,23 @@ use Laravel\Passport\Passport;
 class PassportPgtServerServiceProvider extends BaseStarterKitServiceProvider
 {
     /**
+     * Publishable Environment Variables
+     *
+     * @example [ 'HELLO_WORLD' => true ]
+     *
+     * @var array
+     */
+    protected array $env_vars = [
+        'PPS_AT_EXPIRE_UNIT' => 'days',
+        'PPS_AT_EXPIRE_VALUE' => 15,
+        'PPS_RT_EXPIRE_UNIT' => 'days',
+        'PPS_RT_EXPIRE_VALUE' => 30,
+        'PPS_PAT_EXPIRE_UNIT' => 'days',
+        'PPS_PAT_EXPIRE_VALUE' => 6,
+        'PPS_HASH_CLIENT_SECRETS' => false,
+    ];
+
+    /**
      * Perform post-registration booting of services.
      *
      * @return void
@@ -21,23 +39,25 @@ class PassportPgtServerServiceProvider extends BaseStarterKitServiceProvider
     {
         parent::boot();
 
-        // Override Auth Config
-        passportPgtServer()->setPassportAsApiDriver();
-
         // Add Passport Routes
         if (! $this->app->routesAreCached()) {
             Passport::routes();
         }
 
-        // Hash Client Secrets
-        if (passportPgtServer()->hashClientSecrets()) {
-            Passport::hashClientSecrets();
-        }
+        callAfterResolvingService('passport-pgt-server', function (PassportPgtServer $server) {
+            // Override Auth Config
+            $server->setPassportAsApiDriver();
 
-        // Set Expirations
-        Passport::tokensExpireIn(passportPgtServer()->getTokensExpiresIn());
-        Passport::refreshTokensExpireIn(passportPgtServer()->getRefreshTokensExpiresIn());
-        Passport::personalAccessTokensExpireIn(passportPgtServer()->getPersonalAccessTokensExpiresIn());
+            // Hash Client Secrets
+            if ($server->hashClientSecrets()) {
+                Passport::hashClientSecrets();
+            }
+
+            // Set Expirations
+            Passport::tokensExpireIn($server->getTokensExpiresIn());
+            Passport::refreshTokensExpireIn($server->getRefreshTokensExpiresIn());
+            Passport::personalAccessTokensExpireIn($server->getPersonalAccessTokensExpiresIn());
+        });
     }
 
     /**
@@ -47,12 +67,12 @@ class PassportPgtServerServiceProvider extends BaseStarterKitServiceProvider
      */
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__.'/../config/passport-pgt-server.php', 'passport-pgt-server');
-
         // Register the service the package provides.
         $this->app->singleton('passport-pgt-server', function ($app, $params) {
             return new PassportPgtServer(collect($params)->get('auth_server_controller'));
         });
+
+        parent::register();
     }
 
     /**

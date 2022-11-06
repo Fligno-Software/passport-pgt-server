@@ -38,10 +38,10 @@ class DefaultAuthController extends Controller
 
         $data['user'] = $user;
 
-        $log = passportPgtClient()->login($user->email, $validated['password']);
+        $log = passportPgtClient()->login($validated['email'], $validated['password']);
 
-        if ($log->isSuccessful()) {
-            $data['tokens'] = $log->data;
+        if ($log->getStatusFromResponse() == 200) {
+            $data['tokens'] = $log->getDataFromResponse();
         }
 
         return customResponse()
