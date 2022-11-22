@@ -44,20 +44,18 @@ class PassportPgtServerServiceProvider extends BaseStarterKitServiceProvider
             Passport::routes();
         }
 
-        callAfterResolvingService('passport-pgt-server', function (PassportPgtServer $server) {
-            // Override Auth Config
-            $server->setPassportAsApiDriver();
+        // Override Auth Config
+        passportPgtServer()->setPassportAsApiDriver();
 
-            // Hash Client Secrets
-            if ($server->hashClientSecrets()) {
-                Passport::hashClientSecrets();
-            }
+        // Hash Client Secrets
+        if (passportPgtServer()->hashClientSecrets()) {
+            Passport::hashClientSecrets();
+        }
 
-            // Set Expirations
-            Passport::tokensExpireIn($server->getTokensExpiresIn());
-            Passport::refreshTokensExpireIn($server->getRefreshTokensExpiresIn());
-            Passport::personalAccessTokensExpireIn($server->getPersonalAccessTokensExpiresIn());
-        });
+        // Set Expirations
+        Passport::tokensExpireIn(passportPgtServer()->getTokensExpiresIn());
+        Passport::refreshTokensExpireIn(passportPgtServer()->getRefreshTokensExpiresIn());
+        Passport::personalAccessTokensExpireIn(passportPgtServer()->getPersonalAccessTokensExpiresIn());
     }
 
     /**
